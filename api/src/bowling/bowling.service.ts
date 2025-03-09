@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { BowlingRepository } from './bowling.repository';
+import { Frame } from './bowling.schema';
 import { Bowling } from './bowling.schema';
 import {
   AddFrameDto,
@@ -21,7 +22,7 @@ import {
 
 @Injectable()
 export class BowlingService {
-  constructor(private readonly bowlingRepository: BowlingRepository) { }
+  constructor(private readonly bowlingRepository: BowlingRepository) {}
 
   async startGame(startGameDto: StartBowlingDto): Promise<Bowling> {
     const game: Partial<Bowling> = {
@@ -123,7 +124,10 @@ export class BowlingService {
   }
 
   private validateRolls(rolls: string[], isTenthFrame: boolean) {
-    if (rolls.length > MAX_ROLLS_TENTH_FRAME || (!isTenthFrame && rolls.length > MAX_ROLLS_NORMAL_FRAME)) {
+    if (
+      rolls.length > MAX_ROLLS_TENTH_FRAME ||
+      (!isTenthFrame && rolls.length > MAX_ROLLS_NORMAL_FRAME)
+    ) {
       throw new BadRequestException('Invalid number of rolls');
     }
 
@@ -155,50 +159,117 @@ export class BowlingService {
     }
   }
 
-  private calculateTotalScore(game: Bowling, player: string) {
+  private calculateTenthFrameScore(rolls: string[]): number {
+    if (rolls[0] === STRIKE) {
+      const second = this.parseRoll(rolls[1] || '0');
+      const third =
+        rolls[2] === SPARE
+          ? MAX_PINS - second
+          : this.parseRoll(rolls[2] || '0');
+      return MAX_PINS + second + third;
+    }
+    if (rolls[1] === SPARE) {
+      return MAX_PINS + this.parseRoll(rolls[2] || '0');
+    }
+    return this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
+  }
+
+  private calculateNormalFrameScore(
+    game: Bowling,
+    player: string,
+    frameIndex: number,
+    rolls: string[],
+  ): number {
+    if (rolls[0] === STRIKE) {
+      return MAX_PINS + this.getNextTwoRolls(game, player, frameIndex);
+    }
+    if (rolls[1] === SPARE) {
+      return MAX_PINS + this.getNextRoll(game, player, frameIndex);
+    }
+    return this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
+  }
+
+  private updatePreviousFrameScores(
+    game: Bowling,
+    player: string,
+    currentFrameIndex: number,
+    frames: Frame[],
+  ): void {
+    this.updatePreviousStrikeScore(game, player, currentFrameIndex, frames);
+    this.updatePreviousDoubleStrikeScore(
+      game,
+      player,
+      currentFrameIndex,
+      frames,
+    );
+    this.updatePreviousSpareScore(game, player, currentFrameIndex, frames);
+  }
+
+  private updatePreviousStrikeScore(
+    game: Bowling,
+    player: string,
+    currentFrameIndex: number,
+    frames: Frame[],
+  ): void {
+    if (
+      currentFrameIndex > 0 &&
+      frames[currentFrameIndex - 1].rolls[0] === STRIKE
+    ) {
+      frames[currentFrameIndex - 1].score =
+        MAX_PINS + this.getNextTwoRolls(game, player, currentFrameIndex - 1);
+    }
+  }
+
+  private updatePreviousDoubleStrikeScore(
+    game: Bowling,
+    player: string,
+    currentFrameIndex: number,
+    frames: Frame[],
+  ): void {
+    if (
+      currentFrameIndex > 1 &&
+      frames[currentFrameIndex - 2].rolls[0] === STRIKE &&
+      frames[currentFrameIndex - 1].rolls[0] === STRIKE
+    ) {
+      frames[currentFrameIndex - 2].score =
+        MAX_PINS + this.getNextTwoRolls(game, player, currentFrameIndex - 2);
+    }
+  }
+
+  private updatePreviousSpareScore(
+    game: Bowling,
+    player: string,
+    currentFrameIndex: number,
+    frames: Frame[],
+  ): void {
+    if (
+      currentFrameIndex > 0 &&
+      frames[currentFrameIndex - 1].rolls[1] === SPARE
+    ) {
+      frames[currentFrameIndex - 1].score =
+        MAX_PINS + this.getNextRoll(game, player, currentFrameIndex - 1);
+    }
+  }
+
+  private calculateTotalScore(game: Bowling, player: string): void {
     const frames = game.frames[player] || [];
     let totalScore = 0;
 
     for (let i = 0; i < frames.length; i++) {
       const rolls = frames[i].rolls;
-      let frameScore = 0;
+      const isTenthFrame = i === MAX_FRAMES - 1;
 
-      if (i === MAX_FRAMES - 1) {
-        if (rolls[0] === STRIKE) {
-          const second = this.parseRoll(rolls[1] || '0');
-          const third =
-            rolls[2] === SPARE ? MAX_PINS - second : this.parseRoll(rolls[2] || '0');
-          frameScore = MAX_PINS + second + third;
-        } else if (rolls[1] === SPARE) {
-          frameScore = MAX_PINS + this.parseRoll(rolls[2] || '0');
-        } else {
-          frameScore =
-            this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
-        }
-      } else {
-        if (rolls[0] === STRIKE) {
-          frameScore = MAX_PINS + this.getNextTwoRolls(game, player, i);
-        } else if (rolls[1] === SPARE) {
-          frameScore = MAX_PINS + this.getNextRoll(game, player, i);
-        } else {
-          frameScore =
-            this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
-        }
-        if (i > 0 && frames[i - 1].rolls[0] === STRIKE) {
-          frames[i - 1].score = MAX_PINS + this.getNextTwoRolls(game, player, i - 1);
-        }
-        if (
-          i > 1 &&
-          frames[i - 2].rolls[0] === STRIKE &&
-          frames[i - 1].rolls[0] === STRIKE
-        ) {
-          frames[i - 2].score = MAX_PINS + this.getNextTwoRolls(game, player, i - 2);
-        }
-        if (i > 0 && frames[i - 1].rolls[1] === SPARE) {
-          frames[i - 1].score = MAX_PINS + this.getNextRoll(game, player, i - 1);
-        }
+      // Calculate current frame score
+      const frameScore = isTenthFrame
+        ? this.calculateTenthFrameScore(rolls)
+        : this.calculateNormalFrameScore(game, player, i, rolls);
+
+      // Update previous frames' scores
+      if (!isTenthFrame) {
+        this.updatePreviousFrameScores(game, player, i, frames);
       }
 
+      // Update current frame score and total
       frames[i].score = frameScore;
       totalScore += frameScore;
     }
@@ -207,7 +278,11 @@ export class BowlingService {
   }
 
   private parseRoll(roll: string): number {
-    return roll === STRIKE ? MAX_PINS : roll === SPARE ? 0 : parseInt(roll) || 0;
+    return roll === STRIKE
+      ? MAX_PINS
+      : roll === SPARE
+        ? 0
+        : parseInt(roll) || 0;
   }
 
   private getNextTwoRolls(
