@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongodb:27017/bowling
+      - PORT=3000
+    command: npm run start:dev
+
+  mongo:
+    image: mongo:5.0.2 
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data_bowling:/data/db
+    command: ["--bind_ip_all", "--noauth"]
+    healthcheck:
+      test: ["CMD-SHELL", "mongo --eval 'db.runCommand({ping:1})' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mongo_data_bowling:
+
+networks:
+  default:
+    name: bowling-network
