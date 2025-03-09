@@ -4,6 +4,7 @@ import { BowlingRepository } from '../bowling.repository';
 import { Bowling } from '../bowling.schema';
 import { StartBowlingDto, AddFrameDto, ScoreboardDto } from '../bowling.dto';
 import { BadRequestException } from '@nestjs/common';
+import { GameStatus } from '../bowling.const';
 
 // Mock data
 const createMockBowling = (): Partial<Bowling> => ({
@@ -12,7 +13,7 @@ const createMockBowling = (): Partial<Bowling> => ({
   frames: { Alice: [], Bob: [] },
   scores: { Alice: 0, Bob: 0 },
   currentFrame: 1,
-  status: 'in_progress',
+  status: GameStatus.IN_PROGRESS,
 });
 
 const mockUpdatedBowling: Partial<Bowling> = {
@@ -34,7 +35,7 @@ const mockCompletedFrames: Partial<Bowling> = {
   },
   scores: { Alice: 168, Bob: 170 },
   currentFrame: 10,
-  status: 'completed',
+  status: GameStatus.COMPLETED,
 };
 
 const mockScoreboard: ScoreboardDto = {
@@ -43,7 +44,7 @@ const mockScoreboard: ScoreboardDto = {
     Bob: { frames: [], totalScore: 0 },
   },
   currentFrame: 1,
-  status: 'in_progress',
+  status: GameStatus.IN_PROGRESS,
 };
 
 // Mock BowlingRepository
@@ -92,7 +93,7 @@ describe('BowlingService', () => {
         frames: { Alice: [], Bob: [] },
         scores: { Alice: 0, Bob: 0 },
         currentFrame: 1,
-        status: 'in_progress',
+        status: GameStatus.IN_PROGRESS,
       });
       expect(result).toEqual(createMockBowling());
     });
@@ -197,14 +198,14 @@ describe('BowlingService', () => {
             { rolls: ['X', '9', '/'], score: 20 },
           ],
         },
-        status: 'completed',
+        status: GameStatus.COMPLETED,
       };
       mockBowlingRepository.findById.mockResolvedValue(gameAtNinth);
       mockBowlingRepository.update.mockResolvedValue(completedGame);
 
       const result = await service.addFrame(gameId, addFrameDto);
 
-      expect(result.status).toBe('completed');
+      expect(result.status).toBe(GameStatus.COMPLETED);
     });
   });
 
@@ -226,7 +227,7 @@ describe('BowlingService', () => {
 
       const result = await service.getScoreboard(gameId);
 
-      expect(result.status).toBe('completed');
+      expect(result.status).toBe(GameStatus.COMPLETED);
       expect(result.winner).toBe('Bob');
       expect(result.players['Alice'].totalScore).toBe(168);
       expect(result.players['Bob'].totalScore).toBe(170);

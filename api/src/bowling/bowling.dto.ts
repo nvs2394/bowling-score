@@ -9,10 +9,11 @@ import {
   IsNumber,
   IsOptional,
 } from 'class-validator';
+import { GameStatus } from './bowling.const';
 
 export class StartBowlingDto {
   @ApiProperty({
-    example: ['Alice', 'Bob'],
+    example: ['Hulk', 'Hawkeye'],
     description: 'List of player names',
   })
   @IsArray()
@@ -24,7 +25,7 @@ export class StartBowlingDto {
 }
 
 export class AddFrameDto {
-  @ApiProperty({ example: 'Alice', description: 'Player name' })
+  @ApiProperty({ example: 'Hulk', description: 'Player name' })
   @IsString()
   @MinLength(1, { message: 'Player name cannot be empty' })
   player: string;
@@ -70,8 +71,8 @@ export class ScoreboardDto {
   currentFrame: number;
 
   @ApiProperty()
-  @IsEnum(['pending', 'in_progress', 'completed'])
-  status: string;
+  @IsEnum(GameStatus)
+  status: GameStatus;
 
   @ApiProperty()
   @IsOptional()

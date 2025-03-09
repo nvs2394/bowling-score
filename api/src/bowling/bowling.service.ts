@@ -9,11 +9,19 @@ import {
   FrameScoreDto,
 } from './bowling.dto';
 
-import { SPARE, STRIKE } from './bowling.const';
+import {
+  SPARE,
+  STRIKE,
+  MAX_FRAMES,
+  MAX_PINS,
+  MAX_ROLLS_NORMAL_FRAME,
+  MAX_ROLLS_TENTH_FRAME,
+  GameStatus,
+} from './bowling.const';
 
 @Injectable()
 export class BowlingService {
-  constructor(private readonly bowlingRepository: BowlingRepository) {}
+  constructor(private readonly bowlingRepository: BowlingRepository) { }
 
   async startGame(startGameDto: StartBowlingDto): Promise<Bowling> {
     const game: Partial<Bowling> = {
@@ -21,7 +29,7 @@ export class BowlingService {
       frames: Object.fromEntries(startGameDto.players.map((p) => [p, []])),
       scores: Object.fromEntries(startGameDto.players.map((p) => [p, 0])),
       currentFrame: 1,
-      status: 'in_progress',
+      status: GameStatus.IN_PROGRESS,
     };
     return this.bowlingRepository.create(game);
   }
@@ -34,9 +42,9 @@ export class BowlingService {
     }
 
     const playerFrames = game.frames[addFrameDto.player] || [];
-    const isTenthFrame = playerFrames.length === 9;
+    const isTenthFrame = playerFrames.length === MAX_FRAMES - 1;
 
-    if (playerFrames.length >= 10) {
+    if (playerFrames.length >= MAX_FRAMES) {
       throw new BadRequestException('Game already completed for this player');
     }
 
@@ -51,13 +59,13 @@ export class BowlingService {
     const allPlayersRolled = game.players.every(
       (p) => (game.frames[p] || []).length >= game.currentFrame,
     );
-    if (allPlayersRolled && game.currentFrame < 10) {
+    if (allPlayersRolled && game.currentFrame < MAX_FRAMES) {
       game.currentFrame += 1;
     } else if (
-      game.currentFrame === 10 &&
-      game.players.every((p) => (game.frames[p] || []).length === 10)
+      game.currentFrame === MAX_FRAMES &&
+      game.players.every((p) => (game.frames[p] || []).length === MAX_FRAMES)
     ) {
-      game.status = 'completed';
+      game.status = GameStatus.COMPLETED;
     }
 
     return this.bowlingRepository.update(game);
@@ -88,7 +96,7 @@ export class BowlingService {
       status: game.status,
     };
 
-    if (game.status === 'completed') {
+    if (game.status === GameStatus.COMPLETED) {
       let winner = game.players[0];
       let highestScore = game.scores[winner];
       for (const player of game.players) {
@@ -115,20 +123,21 @@ export class BowlingService {
   }
 
   private validateRolls(rolls: string[], isTenthFrame: boolean) {
-    if (rolls.length > 3 || (!isTenthFrame && rolls.length > 2)) {
+    if (rolls.length > MAX_ROLLS_TENTH_FRAME || (!isTenthFrame && rolls.length > MAX_ROLLS_NORMAL_FRAME)) {
       throw new BadRequestException('Invalid number of rolls');
     }
+
     if (!isTenthFrame && rolls.length === 1 && rolls[0] !== STRIKE) {
       throw new BadRequestException(
         'Non-strike requires two rolls in frames 1-9',
       );
     }
-    if (rolls[1] === SPARE && this.parseRoll(rolls[0]) >= 10) {
+    if (rolls[1] === SPARE && this.parseRoll(rolls[0]) >= MAX_PINS) {
       throw new BadRequestException('Spare not possible with first roll >= 10');
     }
     if (
       isTenthFrame &&
-      rolls.length === 3 &&
+      rolls.length === MAX_ROLLS_TENTH_FRAME &&
       rolls[0] !== STRIKE &&
       rolls[1] !== SPARE
     ) {
@@ -137,9 +146,9 @@ export class BowlingService {
       );
     }
     const totalPins = rolls
-      .slice(0, 2)
+      .slice(0, MAX_ROLLS_NORMAL_FRAME)
       .reduce((sum, roll) => sum + this.parseRoll(roll), 0);
-    if (!isTenthFrame && totalPins > 10) {
+    if (!isTenthFrame && totalPins > MAX_PINS) {
       throw new BadRequestException(
         "Total pins in a frame cannot exceed 10 unless it's the 10th frame",
       );
@@ -154,39 +163,39 @@ export class BowlingService {
       const rolls = frames[i].rolls;
       let frameScore = 0;
 
-      if (i === 9) {
+      if (i === MAX_FRAMES - 1) {
         if (rolls[0] === STRIKE) {
           const second = this.parseRoll(rolls[1] || '0');
           const third =
-            rolls[2] === SPARE ? 10 - second : this.parseRoll(rolls[2] || '0');
-          frameScore = 10 + second + third;
+            rolls[2] === SPARE ? MAX_PINS - second : this.parseRoll(rolls[2] || '0');
+          frameScore = MAX_PINS + second + third;
         } else if (rolls[1] === SPARE) {
-          frameScore = 10 + this.parseRoll(rolls[2] || '0');
+          frameScore = MAX_PINS + this.parseRoll(rolls[2] || '0');
         } else {
           frameScore =
             this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
         }
       } else {
         if (rolls[0] === STRIKE) {
-          frameScore = 10 + this.getNextTwoRolls(game, player, i);
+          frameScore = MAX_PINS + this.getNextTwoRolls(game, player, i);
         } else if (rolls[1] === SPARE) {
-          frameScore = 10 + this.getNextRoll(game, player, i);
+          frameScore = MAX_PINS + this.getNextRoll(game, player, i);
         } else {
           frameScore =
             this.parseRoll(rolls[0]) + this.parseRoll(rolls[1] || '0');
         }
         if (i > 0 && frames[i - 1].rolls[0] === STRIKE) {
-          frames[i - 1].score = 10 + this.getNextTwoRolls(game, player, i - 1);
+          frames[i - 1].score = MAX_PINS + this.getNextTwoRolls(game, player, i - 1);
         }
         if (
           i > 1 &&
           frames[i - 2].rolls[0] === STRIKE &&
           frames[i - 1].rolls[0] === STRIKE
         ) {
-          frames[i - 2].score = 10 + this.getNextTwoRolls(game, player, i - 2);
+          frames[i - 2].score = MAX_PINS + this.getNextTwoRolls(game, player, i - 2);
         }
         if (i > 0 && frames[i - 1].rolls[1] === SPARE) {
-          frames[i - 1].score = 10 + this.getNextRoll(game, player, i - 1);
+          frames[i - 1].score = MAX_PINS + this.getNextRoll(game, player, i - 1);
         }
       }
 
@@ -198,7 +207,7 @@ export class BowlingService {
   }
 
   private parseRoll(roll: string): number {
-    return roll === STRIKE ? 10 : roll === SPARE ? 0 : parseInt(roll) || 0;
+    return roll === STRIKE ? MAX_PINS : roll === SPARE ? 0 : parseInt(roll) || 0;
   }
 
   private getNextTwoRolls(

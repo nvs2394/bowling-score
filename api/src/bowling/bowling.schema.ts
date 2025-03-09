@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { GameStatus } from './bowling.const';
 
 @Schema()
 export class Frame {
@@ -25,10 +26,10 @@ export class Bowling extends Document {
   currentFrame: number;
 
   @Prop({
-    enum: ['in_progress', 'completed'],
-    default: 'in_progress',
+    enum: GameStatus,
+    default: GameStatus.IN_PROGRESS,
   })
-  status: string;
+  status: GameStatus;
 }
 
 export const BowlingSchema = SchemaFactory.createForClass(Bowling);

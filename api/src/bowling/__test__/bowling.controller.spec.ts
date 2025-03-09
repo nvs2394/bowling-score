@@ -4,6 +4,7 @@ import { BowlingService } from '../bowling.service';
 import { StartBowlingDto, AddFrameDto, ScoreboardDto } from '../bowling.dto';
 import { Bowling } from '../bowling.schema';
 import { BadRequestException } from '@nestjs/common';
+import { GameStatus } from '../bowling.const';
 
 // Mock data
 const mockGame: Bowling = {
@@ -12,7 +13,7 @@ const mockGame: Bowling = {
   frames: { Alice: [], Bob: [] },
   scores: { Alice: 0, Bob: 0 },
   currentFrame: 1,
-  status: 'in_progress',
+  status: GameStatus.IN_PROGRESS,
 } as any;
 
 const mockScoreboard: ScoreboardDto = {
@@ -21,7 +22,7 @@ const mockScoreboard: ScoreboardDto = {
     Bob: { frames: [], totalScore: 0 },
   },
   currentFrame: 1,
-  status: 'in_progress',
+  status: GameStatus.IN_PROGRESS,
 };
 
 // Mock BowlingService
@@ -135,7 +136,7 @@ describe('BowlingController', () => {
       const gameId = '123';
       const completedScoreboard: ScoreboardDto = {
         ...mockScoreboard,
-        status: 'completed',
+        status: GameStatus.COMPLETED,
         players: {
           Alice: { frames: [{ rolls: ['X'], score: 30 }], totalScore: 168 },
           Bob: { frames: [{ rolls: ['X'], score: 30 }], totalScore: 170 },
